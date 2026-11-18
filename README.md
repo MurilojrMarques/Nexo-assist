@@ -1,0 +1,1 @@
+Nexo Assist: um agent de atendimento num chat. O funcionário descreve o que está acontecendo com as próprias palavras, e o agent consulta os chamados dele, busca na central de ajuda, abre ou atualiza chamados e chama um analista quando precisa.

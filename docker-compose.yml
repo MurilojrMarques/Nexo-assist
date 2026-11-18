@@ -1,0 +1,48 @@
+name: nexo-assist
+
+services:
+  backend:
+    build:
+      context: ./backend
+      target: dev
+    init: true
+    ports:
+      - "${BACKEND_PORT:-3333}:3333"
+    environment:
+      NODE_ENV: development
+      PORT: 3333
+      CORS_ORIGIN: http://localhost:${FRONT_PORT:-3000}
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./backend
+          target: /app
+          initial_sync: true
+          ignore:
+            - node_modules/
+            - dist/
+        - action: rebuild
+          path: ./backend/package-lock.json
+
+  front:
+    build:
+      context: ./front
+      target: dev
+    init: true
+    ports:
+      - "${FRONT_PORT:-3000}:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:${BACKEND_PORT:-3333}/api
+    depends_on:
+      - backend
+    develop:
+      watch:
+        - action: sync
+          path: ./front
+          target: /app
+          initial_sync: true
+          ignore:
+            - node_modules/
+            - .next/
+        - action: rebuild
+          path: ./front/package-lock.json

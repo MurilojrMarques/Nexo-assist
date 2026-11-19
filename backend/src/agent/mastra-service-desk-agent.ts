@@ -51,11 +51,13 @@ const assistantOptions = { anthropic: { effort: "low" as const, thinking: { type
 
 const triageOptions = { anthropic: { effort: "low" as const, thinking: { type: "disabled" as const } } };
 
-const lookupTools = new Set<ServiceDeskToolName>(["searchHelpCenter", "listMyTickets", "getTicket"]);
-
 const closingTools = new Set<string>(["offerQuickReplies"]);
 
 type StepSnapshot = { toolCalls?: Array<{ toolName?: string; payload?: { toolName?: string } }> };
+
+export function replyText(composed: string, question: string | null): string {
+  return composed || question || "Veja abaixo.";
+}
 
 export function endsTurn(steps: StepSnapshot[], maxSteps: number): boolean {
   const last = steps.at(-1);
@@ -190,6 +192,7 @@ export class MastraServiceDeskAgent implements ServiceDeskAgent {
     let tokens: TokenCount = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
     let focusTicketCode: string | null = null;
     let overdueTicket: AgentReply["overdueTicket"] = null;
+    let question: string | null = null;
 
     try {
       const stream = await this.assistant.stream(toModelMessages(context.history), {
@@ -211,7 +214,7 @@ export class MastraServiceDeskAgent implements ServiceDeskAgent {
             const name = chunk.payload.toolName as ServiceDeskToolName;
             const args = (chunk.payload.args ?? {}) as Record<string, unknown>;
             calls.set(chunk.payload.toolCallId, { name, args, startedAt: Date.now() });
-            composer.toolCalled(lookupTools.has(name));
+            composer.toolCalled(Boolean(visibleSteps[name]));
             const label = visibleSteps[name]?.(args);
 
             if (label) {
@@ -231,6 +234,7 @@ export class MastraServiceDeskAgent implements ServiceDeskAgent {
               rationale.push(...(outcome.rationale ?? []));
               focusTicketCode = outcome.focusTicketCode ?? focusTicketCode;
               overdueTicket = outcome.overdueTicket ?? overdueTicket;
+              question = outcome.question ?? question;
             }
 
             this.recordStep(call, chunk.payload.toolCallId, ok, ok ? outcome.detail : "A ferramenta falhou", steps, emit);
@@ -265,7 +269,7 @@ export class MastraServiceDeskAgent implements ServiceDeskAgent {
     }
 
     return {
-      text: text || "Veja abaixo.",
+      text: replyText(text, question),
       parts,
       steps,
       action,

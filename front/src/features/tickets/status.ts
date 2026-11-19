@@ -6,6 +6,7 @@ type StatusStyle = {
 };
 
 export const ticketStatusStyle: Record<TicketStatus, StatusStyle> = {
+  Aberto: { dot: "bg-primary", text: "text-link" },
   "Aguardando analista": { dot: "bg-warning", text: "text-warning-ink" },
   "Em atendimento": { dot: "bg-primary", text: "text-link" },
   "Em andamento": { dot: "bg-accent", text: "text-link" },

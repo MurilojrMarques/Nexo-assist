@@ -1,23 +1,39 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useImperativeHandle, useRef, useState, type FormEvent, type Ref } from "react";
 import { ArrowUp } from "lucide-react";
 import { formatUsage, isLimitReached, type SessionUsage } from "@/features/chat/lib/session-usage";
 
-type ComposerProps = {
-  usage: SessionUsage;
-  onSend: (text: string) => void;
+export const MESSAGE_MAX_LENGTH = 2000;
+
+export type ComposerHandle = {
+  focusWith: (text: string) => void;
 };
 
-export function Composer({ usage, onSend }: ComposerProps) {
+type ComposerProps = {
+  usage: SessionUsage;
+  busy?: boolean;
+  onSend: (text: string) => void;
+  ref?: Ref<ComposerHandle>;
+};
+
+export function Composer({ usage, busy = false, onSend, ref }: ComposerProps) {
   const [text, setText] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   const limitReached = isLimitReached(usage);
+
+  useImperativeHandle(ref, () => ({
+    focusWith(value: string) {
+      setText(value);
+      inputRef.current?.focus();
+    },
+  }));
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const message = text.trim();
 
-    if (!message || limitReached) {
+    if (!message || limitReached || busy) {
       return;
     }
 
@@ -32,17 +48,19 @@ export function Composer({ usage, onSend }: ComposerProps) {
           Mensagem para o Nexo
         </label>
         <input
+          ref={inputRef}
           id="composer-message"
           value={text}
           onChange={(event) => setText(event.target.value)}
           disabled={limitReached}
+          maxLength={MESSAGE_MAX_LENGTH}
           autoComplete="off"
           placeholder={limitReached ? "Limite de mensagens desta sessão atingido" : "Escreva para o Nexo…"}
           className="h-full min-w-0 flex-1 bg-transparent text-[14.5px] text-ink outline-none placeholder:text-muted disabled:cursor-not-allowed"
         />
         <button
           type="submit"
-          disabled={limitReached}
+          disabled={limitReached || busy}
           className="flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 text-[13.5px] font-semibold text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <ArrowUp aria-hidden="true" className="size-3.5" />

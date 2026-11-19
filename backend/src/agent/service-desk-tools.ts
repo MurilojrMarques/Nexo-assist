@@ -87,9 +87,12 @@ export function createServiceDeskTools(actions: ServiceDeskActions) {
     }),
     offerQuickReplies: createTool({
       id: "offerQuickReplies",
-      description: "Mostra botões de resposta rápida para a próxima mensagem do funcionário.",
-      inputSchema: z.object({ options: z.array(z.string().min(1).max(40)).min(2).max(4) }),
-      execute: async ({ options }) => actions.offerQuickReplies(options),
+      description: "Mostra botões de resposta rápida abaixo da sua mensagem. Em question, repita a pergunta que você fez ao funcionário.",
+      inputSchema: z.object({
+        question: z.string().min(1).max(160),
+        options: z.array(z.string().min(1).max(40)).min(2).max(4),
+      }),
+      execute: async ({ question, options }) => actions.offerQuickReplies(question, options),
       toModelOutput: forModel,
     }),
   };

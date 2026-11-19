@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/api-error";
-import type { RequestFn } from "@/lib/api/http";
+import type { RequestFn, StreamFn } from "@/lib/api/http";
 import type { AuthApi } from "@/features/auth/api/auth-api";
 import type { AuthSession } from "@/features/auth/types";
 import { SessionManager } from "./session-manager";
@@ -29,9 +29,10 @@ function setup(overrides: Partial<AuthApi> = {}) {
     ...overrides,
   };
   const request = vi.fn(async () => ({ ok: true })) as unknown as RequestFn & ReturnType<typeof vi.fn>;
-  const manager = new SessionManager({ auth, request, wait: async () => undefined });
+  const stream = vi.fn(async () => new Response("")) as unknown as StreamFn & ReturnType<typeof vi.fn>;
+  const manager = new SessionManager({ auth, request, stream, wait: async () => undefined });
 
-  return { auth, request, manager };
+  return { auth, request, stream, manager };
 }
 
 describe("SessionManager", () => {
@@ -98,6 +99,21 @@ describe("SessionManager", () => {
     await manager.authorizedRequest("/employee/tickets");
 
     expect(request).toHaveBeenLastCalledWith("/employee/tickets", { token: "token-refresh" });
+  });
+
+  it("abre o streaming com o token e renova quando ele expirou", async () => {
+    const { manager, stream } = setup();
+    await manager.login("ana.souza@nexo.com.br", "Senha-123");
+    stream.mockRejectedValueOnce(expired());
+
+    await manager.authorizedStream("/employee/conversations/c1/messages", { method: "POST", body: { content: "oi" } });
+
+    expect(stream).toHaveBeenCalledTimes(2);
+    expect(stream).toHaveBeenLastCalledWith("/employee/conversations/c1/messages", {
+      method: "POST",
+      body: { content: "oi" },
+      token: "token-refresh",
+    });
   });
 
   it("desloga quando nem o refresh funciona mais", async () => {

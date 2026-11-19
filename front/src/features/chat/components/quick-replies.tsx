@@ -2,11 +2,12 @@ import type { QuickReplyOption, ReplyOptions } from "@/features/chat/types";
 
 type QuickRepliesProps = {
   replies: ReplyOptions;
+  disabled?: boolean;
   onSelect: (option: QuickReplyOption) => void;
 };
 
-export function QuickReplies({ replies, onSelect }: QuickRepliesProps) {
-  const answered = replies.selected !== undefined;
+export function QuickReplies({ replies, disabled = false, onSelect }: QuickRepliesProps) {
+  const answered = disabled || replies.selected !== undefined;
 
   return (
     <div className="flex flex-col gap-3">

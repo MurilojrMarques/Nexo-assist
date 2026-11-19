@@ -4,6 +4,7 @@ import { requireAuth } from "../../http/middlewares/authenticate.js";
 import { SseStream } from "../../http/sse.js";
 import { AppError } from "../../shared/errors/app-error.js";
 import type { ConversationService } from "./conversation.service.js";
+import { employeeConversation, employeeEvent } from "./employee-view.js";
 
 const conversationParams = z.object({ conversationId: z.uuid() }).strict();
 const draftParams = z.object({ conversationId: z.uuid(), draftId: z.uuid() }).strict();
@@ -26,7 +27,7 @@ export function createEmployeeConversationRoutes(conversations: ConversationServ
   router.get("/conversations/:conversationId", async (req, res) => {
     const { userId } = requireAuth(req);
     const { conversationId } = conversationParams.parse(req.params);
-    res.json({ conversation: await conversations.getForEmployee(conversationId, userId) });
+    res.json({ conversation: employeeConversation(await conversations.getForEmployee(conversationId, userId)) });
   });
 
   router.post("/conversations/:conversationId/messages", messageLimiter, async (req, res) => {
@@ -36,7 +37,7 @@ export function createEmployeeConversationRoutes(conversations: ConversationServ
     const stream = new SseStream(res);
 
     try {
-      await conversations.sendEmployeeMessage(conversationId, userId, content, (event) => stream.send(event));
+      await conversations.sendEmployeeMessage(conversationId, userId, content, (event) => stream.send(employeeEvent(event)));
     } catch (error) {
       if (!stream.started) {
         throw error;
@@ -59,13 +60,13 @@ export function createEmployeeConversationRoutes(conversations: ConversationServ
   router.post("/conversations/:conversationId/drafts/:draftId/confirm", async (req, res) => {
     const { userId } = requireAuth(req);
     const { conversationId, draftId } = draftParams.parse(req.params);
-    res.json({ conversation: await conversations.confirmDraft(conversationId, userId, draftId) });
+    res.json({ conversation: employeeConversation(await conversations.confirmDraft(conversationId, userId, draftId)) });
   });
 
   router.post("/conversations/:conversationId/drafts/:draftId/cancel", async (req, res) => {
     const { userId } = requireAuth(req);
     const { conversationId, draftId } = draftParams.parse(req.params);
-    res.json({ conversation: await conversations.cancelDraft(conversationId, userId, draftId) });
+    res.json({ conversation: employeeConversation(await conversations.cancelDraft(conversationId, userId, draftId)) });
   });
 
   return router;

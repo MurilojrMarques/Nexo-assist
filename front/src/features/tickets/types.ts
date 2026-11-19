@@ -1,6 +1,7 @@
 import type { Priority } from "./priority";
 
 export type TicketStatus =
+  | "Aberto"
   | "Aguardando analista"
   | "Em atendimento"
   | "Em andamento"

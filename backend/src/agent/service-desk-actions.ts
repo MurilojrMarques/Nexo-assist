@@ -18,6 +18,7 @@ export type ActionOutcome = {
   rationale?: string[];
   focusTicketCode?: string;
   overdueTicket?: { code: string; priority: TicketPriority };
+  question?: string;
   detail: string;
 };
 
@@ -287,10 +288,11 @@ export class ServiceDeskActions {
     };
   }
 
-  offerQuickReplies(options: string[]): ActionOutcome {
+  offerQuickReplies(question: string, options: string[]): ActionOutcome {
     return {
       model: { shown: true },
       part: { type: "quick-replies", options: options.map(plainText) },
+      question: plainText(question),
       detail: options.join(" · "),
     };
   }

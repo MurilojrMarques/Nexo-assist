@@ -9,10 +9,12 @@ export type RequestOptions = {
 
 export type RequestFn = <T>(path: string, options?: RequestOptions) => Promise<T>;
 
+export type StreamFn = (path: string, options?: RequestOptions) => Promise<Response>;
+
 export const API_BASE_PATH = "/api";
 
-function buildHeaders(options: RequestOptions): HeadersInit {
-  const headers: Record<string, string> = { Accept: "application/json" };
+function buildHeaders(options: RequestOptions, accept = "application/json"): HeadersInit {
+  const headers: Record<string, string> = { Accept: accept };
 
   if (options.body !== undefined) {
     headers["Content-Type"] = "application/json";
@@ -25,21 +27,37 @@ function buildHeaders(options: RequestOptions): HeadersInit {
   return headers;
 }
 
-export const request: RequestFn = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
-  let response: Response;
-
+async function send(path: string, options: RequestOptions, accept?: string): Promise<Response> {
   try {
-    response = await fetch(`${API_BASE_PATH}${path}`, {
+    return await fetch(`${API_BASE_PATH}${path}`, {
       method: options.method ?? "GET",
-      headers: buildHeaders(options),
+      headers: buildHeaders(options, accept),
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       credentials: "same-origin",
       cache: "no-store",
       signal: options.signal,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw error;
+    }
+
     throw ApiError.network();
   }
+}
+
+export const openStream: StreamFn = async (path, options = {}) => {
+  const response = await send(path, options, "text/event-stream");
+
+  if (!response.ok) {
+    throw ApiError.fromResponse(response.status, await response.json().catch(() => null));
+  }
+
+  return response;
+};
+
+export const request: RequestFn = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
+  const response = await send(path, options);
 
   if (response.status === 204) {
     return undefined as T;

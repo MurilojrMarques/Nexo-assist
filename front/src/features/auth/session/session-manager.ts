@@ -1,5 +1,5 @@
 import { ApiError, isApiError } from "@/lib/api/api-error";
-import type { RequestFn, RequestOptions } from "@/lib/api/http";
+import { openStream, type RequestFn, type RequestOptions, type StreamFn } from "@/lib/api/http";
 import type { AuthApi } from "@/features/auth/api/auth-api";
 import type { AuthSession, SessionUser } from "@/features/auth/types";
 
@@ -13,6 +13,7 @@ export type SessionSnapshot = {
 export type SessionManagerDependencies = {
   auth: AuthApi;
   request: RequestFn;
+  stream?: StreamFn;
   wait?: (ms: number) => Promise<void>;
 };
 
@@ -26,9 +27,11 @@ export class SessionManager {
   private refreshInFlight: Promise<boolean> | null = null;
   private readonly listeners = new Set<() => void>();
   private readonly wait: (ms: number) => Promise<void>;
+  private readonly stream: StreamFn;
 
   constructor(private readonly deps: SessionManagerDependencies) {
     this.wait = deps.wait ?? sleep;
+    this.stream = deps.stream ?? openStream;
   }
 
   subscribe = (listener: () => void): (() => void) => {
@@ -67,21 +70,27 @@ export class SessionManager {
     return this.refreshInFlight;
   };
 
-  authorizedRequest = async <T>(path: string, options: Omit<RequestOptions, "token"> = {}): Promise<T> => {
+  authorizedRequest = <T>(path: string, options: Omit<RequestOptions, "token"> = {}): Promise<T> =>
+    this.withToken((token) => this.deps.request<T>(path, { ...options, token }));
+
+  authorizedStream = (path: string, options: Omit<RequestOptions, "token"> = {}): Promise<Response> =>
+    this.withToken((token) => this.stream(path, { ...options, token }));
+
+  private async withToken<T>(call: (token: string | null) => Promise<T>): Promise<T> {
     if (!this.accessToken && !(await this.refresh())) {
       throw new ApiError(401, "UNAUTHORIZED", "Sessão expirada. Entre novamente.");
     }
 
     try {
-      return await this.deps.request<T>(path, { ...options, token: this.accessToken });
+      return await call(this.accessToken);
     } catch (error) {
       if (isApiError(error) && error.status === 401 && (await this.refresh())) {
-        return this.deps.request<T>(path, { ...options, token: this.accessToken });
+        return call(this.accessToken);
       }
 
       throw error;
     }
-  };
+  }
 
   private async performRefresh(): Promise<boolean> {
     for (let attempt = 0; attempt < 2; attempt += 1) {

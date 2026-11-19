@@ -5,11 +5,12 @@ import { TicketStatusLabel } from "./ticket-status-label";
 type TicketPickerProps = {
   tickets: TicketSummary[];
   selected?: string;
+  disabled?: boolean;
   onSelect: (ticket: TicketSummary) => void;
 };
 
-export function TicketPicker({ tickets, selected, onSelect }: TicketPickerProps) {
-  const answered = selected !== undefined;
+export function TicketPicker({ tickets, selected, disabled = false, onSelect }: TicketPickerProps) {
+  const answered = disabled || selected !== undefined;
 
   return (
     <div

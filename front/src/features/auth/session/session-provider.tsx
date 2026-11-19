@@ -23,7 +23,7 @@ export function SessionProvider({ children, manager }: SessionProviderProps) {
 }
 
 export type Session = SessionSnapshot &
-  Pick<SessionManager, "login" | "logout" | "authorizedRequest">;
+  Pick<SessionManager, "login" | "logout" | "authorizedRequest" | "authorizedStream">;
 
 export function useSession(): Session {
   const manager = useContext(SessionContext);
@@ -39,5 +39,6 @@ export function useSession(): Session {
     login: manager.login,
     logout: manager.logout,
     authorizedRequest: manager.authorizedRequest,
+    authorizedStream: manager.authorizedStream,
   };
 }

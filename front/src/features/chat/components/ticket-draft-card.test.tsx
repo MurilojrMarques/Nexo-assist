@@ -1,64 +1,82 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { TicketDraft } from "@/features/chat/types";
 import { TicketDraftCard } from "./ticket-draft-card";
 
 const draft: TicketDraft = {
-  code: "D-381",
-  title: "VPN não conecta no notebook — erro 809",
-  description: "Desde 20/10 o notebook não conecta na VPN.",
+  id: "d1",
+  number: 381,
+  action: "CREATE",
+  status: "pending",
+  targetTicketCode: null,
+  resultTicketCode: null,
+  title: "VPN não conecta no notebook, erro 809",
+  description: "Desde ontem o notebook não conecta na VPN.",
   category: "Rede e VPN",
   priority: "Alta",
-  responseDue: "13:43",
+  responseTarget: "4 horas úteis",
   affected: "Somente você",
 };
 
+function renderCard(overrides: Partial<TicketDraft> = {}, actionable = true) {
+  const handlers = { onConfirm: vi.fn(), onCancel: vi.fn(), onEdit: vi.fn() };
+  render(<TicketDraftCard draft={{ ...draft, ...overrides }} actionable={actionable} {...handlers} />);
+  return handlers;
+}
+
 describe("TicketDraftCard", () => {
-  it("mostra o rascunho aguardando confirmação", () => {
-    render(<TicketDraftCard draft={draft} />);
+  it("mostra o rascunho aguardando confirmação com o prazo da prioridade", () => {
+    renderCard();
 
     expect(screen.getByRole("heading", { name: draft.title })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Aguardando confirmação");
-    expect(screen.getByText("Rede e VPN")).toBeInTheDocument();
-    expect(screen.getByText("· resposta até 13:43")).toBeInTheDocument();
+    expect(screen.getByText("Rascunho #381")).toBeInTheDocument();
+    expect(screen.getByText("· resposta em até 4 horas úteis")).toBeInTheDocument();
   });
 
-  it("confirma pelo botão e esconde as ações", async () => {
+  it("confirma, edita e cancela pelos botões", async () => {
     const user = userEvent.setup();
-    render(<TicketDraftCard draft={draft} />);
+    const handlers = renderCard();
 
     await user.click(screen.getByRole("button", { name: "Confirmar" }));
+    await user.click(screen.getByRole("button", { name: "Editar" }));
+    await user.click(screen.getByRole("button", { name: "Cancelar" }));
 
-    expect(screen.getByRole("status")).toHaveTextContent("Chamado criado");
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(handlers.onConfirm).toHaveBeenCalledOnce();
+    expect(handlers.onEdit).toHaveBeenCalledOnce();
+    expect(handlers.onCancel).toHaveBeenCalledOnce();
   });
 
   it("confirma pelo atalho Ctrl+Enter", async () => {
     const user = userEvent.setup();
-    render(<TicketDraftCard draft={draft} />);
+    const handlers = renderCard();
 
     await user.keyboard("{Control>}{Enter}{/Control}");
 
-    expect(screen.getByRole("status")).toHaveTextContent("Chamado criado");
+    expect(handlers.onConfirm).toHaveBeenCalledOnce();
   });
 
-  it("cancela o rascunho", async () => {
+  it("mostra o chamado criado e esconde as ações depois de confirmado", async () => {
     const user = userEvent.setup();
-    render(<TicketDraftCard draft={draft} />);
+    const handlers = renderCard({ status: "confirmed", resultTicketCode: "INC-20321" });
 
-    await user.click(screen.getByRole("button", { name: "Cancelar" }));
-
-    expect(screen.getByRole("status")).toHaveTextContent("Rascunho cancelado");
-  });
-
-  it("ignora o atalho depois de cancelado", async () => {
-    const user = userEvent.setup();
-    render(<TicketDraftCard draft={draft} />);
-
-    await user.click(screen.getByRole("button", { name: "Cancelar" }));
     await user.keyboard("{Control>}{Enter}{/Control}");
 
-    expect(screen.getByRole("status")).toHaveTextContent("Rascunho cancelado");
+    expect(screen.getByRole("status")).toHaveTextContent("Chamado criado · INC-20321");
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(handlers.onConfirm).not.toHaveBeenCalled();
+  });
+
+  it("identifica rascunho de atualização de um chamado existente", () => {
+    renderCard({ action: "UPDATE", targetTicketCode: "INC-20311" });
+
+    expect(screen.getByText("Atualizar INC-20311")).toBeInTheDocument();
+  });
+
+  it("não oferece ações enquanto o assistente responde", () => {
+    renderCard({}, false);
+
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });

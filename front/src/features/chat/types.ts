@@ -12,21 +12,44 @@ export type ReplyOptions = {
   selected?: string;
 };
 
+export type DraftStatus = "pending" | "confirmed" | "cancelled" | "expired";
+
 export type TicketDraft = {
-  code: string;
+  id: string;
+  number: number;
+  action: "CREATE" | "UPDATE";
+  status: DraftStatus;
+  targetTicketCode: string | null;
+  resultTicketCode: string | null;
   title: string;
   description: string;
   category: string;
   priority: Priority;
-  responseDue: string;
+  responseTarget: string;
   affected: string;
+};
+
+export type HelpArticle = {
+  slug: string;
+  title: string;
 };
 
 export type AgentPart =
   | { type: "text"; text: string; replies?: ReplyOptions }
   | { type: "ticket-picker"; tickets: TicketSummary[]; selected?: string }
   | { type: "ticket-details"; ticket: TicketDetails }
-  | { type: "ticket-draft"; draft: TicketDraft };
+  | { type: "ticket-list"; tickets: TicketSummary[] }
+  | { type: "ticket-draft"; draft: TicketDraft }
+  | { type: "articles"; articles: HelpArticle[] }
+  | { type: "handoff"; team: string; reason: string };
+
+export type StepStatus = "running" | "ok" | "error";
+
+export type AgentStep = {
+  id: string;
+  label: string;
+  status: StepStatus;
+};
 
 export type UserMessage = {
   id: string;
@@ -37,8 +60,10 @@ export type UserMessage = {
 export type AgentMessage = {
   id: string;
   role: "agent";
-  steps: string[];
+  author: string;
+  steps: AgentStep[];
   parts: AgentPart[];
+  streaming?: boolean;
 };
 
 export type ChatMessage = UserMessage | AgentMessage;

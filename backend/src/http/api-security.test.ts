@@ -343,6 +343,27 @@ describe("API: conversas", () => {
     ]);
   });
 
+  it("funcionário não recebe custo nem raciocínio do agent, só o analista", async () => {
+    const { app } = setup();
+    const ana = await login(app, "ana.souza@nexo.com.br");
+    const rafael = await login(app, "rafael.lima@nexo.com.br");
+    const conversationId = await startConversation(app, ana.token);
+
+    const turn = await request(app)
+      .post(`/api/employee/conversations/${conversationId}/messages`)
+      .set("Authorization", `Bearer ${ana.token}`)
+      .send({ content: "Meu notebook está lento" });
+    const employeeView = await request(app).get(`/api/employee/conversations/${conversationId}`).set("Authorization", `Bearer ${ana.token}`);
+    const supportView = await request(app).get(`/api/support/conversations/${conversationId}`).set("Authorization", `Bearer ${rafael.token}`);
+
+    expect(turn.text).not.toMatch(/costUsd|rationale|confidence/);
+    expect(employeeView.body.conversation).not.toHaveProperty("cost");
+    expect(employeeView.body.conversation.messages[1]).not.toHaveProperty("decision");
+    expect(employeeView.body.conversation.messages[1]).toHaveProperty("steps");
+    expect(supportView.body.conversation).toHaveProperty("cost");
+    expect(supportView.body.conversation.messages[1].decision).toHaveProperty("rationale");
+  });
+
   it("erros antes do streaming saem como JSON comum", async () => {
     const { app } = setup();
     const { token } = await login(app, "ana.souza@nexo.com.br");

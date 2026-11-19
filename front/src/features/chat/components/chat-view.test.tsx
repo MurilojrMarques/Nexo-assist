@@ -1,17 +1,27 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ChatMessage } from "@/features/chat/types";
-import { ChatView } from "./chat-view";
+import { ChatView, EDIT_DRAFT_PREFIX } from "./chat-view";
 
-const conversation: ChatMessage[] = [
+const pickerTurn: ChatMessage[] = [
   { id: "m1", role: "user", text: "Qual o status do meu chamado?" },
   {
     id: "m2",
     role: "agent",
-    steps: ["consultou seus chamados"],
+    author: "Nexo Assist",
+    steps: [{ id: "s1", label: "consultou seus chamados", status: "ok" }],
     parts: [
-      { type: "text", text: "Sobre qual deles quer saber?" },
+      {
+        type: "text",
+        text: "Sobre qual deles quer saber?",
+        replies: {
+          options: [
+            { value: "Só eu", label: "Só eu" },
+            { value: "Minha equipe", label: "Minha equipe" },
+          ],
+        },
+      },
       {
         type: "ticket-picker",
         tickets: [
@@ -19,23 +29,40 @@ const conversation: ChatMessage[] = [
           { code: "REQ-2", title: "Segundo monitor", status: "Aprovado", openedAt: "2026-10-09T16:40:00-03:00" },
         ],
       },
-      {
-        type: "text",
-        text: "Quem está sendo afetado?",
-        replies: {
-          options: [
-            { value: "only-me", label: "Só eu" },
-            { value: "my-team", label: "Minha equipe" },
-          ],
-        },
-      },
     ],
   },
 ];
 
-function renderChat(used = 18) {
-  render(<ChatView initialMessages={conversation} initialUsage={{ used, limit: 30 }} />);
-  return within(screen.getByRole("list", { name: "Conversa" }));
+const draftTurn: ChatMessage = {
+  id: "m3",
+  role: "agent",
+  author: "Nexo Assist",
+  steps: [],
+  parts: [
+    {
+      type: "ticket-draft",
+      draft: {
+        id: "d1",
+        number: 4,
+        action: "CREATE",
+        status: "pending",
+        targetTicketCode: null,
+        resultTicketCode: null,
+        title: "VPN não conecta",
+        description: "Erro 809.",
+        category: "Rede e VPN",
+        priority: "Alta",
+        responseTarget: "4 horas úteis",
+        affected: "Somente você",
+      },
+    },
+  ],
+};
+
+function renderChat({ messages = pickerTurn, used = 2, busy = false } = {}) {
+  const handlers = { onSend: vi.fn(), onConfirmDraft: vi.fn(), onCancelDraft: vi.fn() };
+  render(<ChatView messages={messages} usage={{ used, limit: 30 }} busy={busy} {...handlers} />);
+  return handlers;
 }
 
 describe("ChatView", () => {
@@ -46,48 +73,76 @@ describe("ChatView", () => {
     expect(within(steps).getByText("consultou seus chamados")).toBeInTheDocument();
   });
 
-  it("adiciona a mensagem enviada e atualiza o contador", async () => {
+  it("envia a mensagem digitada", async () => {
     const user = userEvent.setup();
-    const conversationList = renderChat();
+    const { onSend } = renderChat();
 
     await user.type(screen.getByLabelText("Mensagem para o Nexo"), "É urgente{Enter}");
 
-    expect(conversationList.getByText("É urgente")).toBeInTheDocument();
-    expect(screen.getByText("19/30 mensagens nesta sessão")).toBeInTheDocument();
+    expect(onSend).toHaveBeenCalledWith("É urgente");
+    expect(screen.getByLabelText("Mensagem para o Nexo")).toHaveValue("");
   });
 
   it("responde pela opção rápida e trava as demais", async () => {
     const user = userEvent.setup();
-    const conversationList = renderChat();
+    const { onSend } = renderChat();
 
     await user.click(screen.getByRole("button", { name: "Só eu" }));
 
+    expect(onSend).toHaveBeenCalledWith("Só eu");
     expect(screen.getByRole("button", { name: "Só eu" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Minha equipe" })).toBeDisabled();
-    expect(conversationList.getAllByText("Só eu")).toHaveLength(2);
-    expect(screen.getByText("19/30 mensagens nesta sessão")).toBeInTheDocument();
   });
 
   it("escolhe um chamado no seletor e envia a escolha como mensagem", async () => {
     const user = userEvent.setup();
-    const conversationList = renderChat();
+    const { onSend } = renderChat();
     const picker = within(screen.getByRole("group", { name: "Seus chamados" }));
 
     await user.click(picker.getByRole("button", { name: /INC-1/ }));
 
-    expect(picker.getByRole("button", { name: /INC-1/ })).toHaveAttribute("aria-pressed", "true");
+    expect(onSend).toHaveBeenCalledWith("INC-1 · Notebook lento");
     expect(picker.getByRole("button", { name: /REQ-2/ })).toBeDisabled();
-    expect(conversationList.getByText("INC-1 · Notebook lento")).toBeInTheDocument();
-    expect(screen.getByText("19/30 mensagens nesta sessão")).toBeInTheDocument();
   });
 
-  it("não aceita escolhas nem mensagens depois do limite da sessão", async () => {
+  it("só a última resposta aceita escolhas", () => {
+    renderChat({ messages: [...pickerTurn, { id: "m3", role: "user", text: "Deixa pra lá" }] });
+
+    expect(screen.getByRole("button", { name: "Só eu" })).toBeDisabled();
+  });
+
+  it("não aceita escolhas nem envio enquanto o assistente responde", async () => {
     const user = userEvent.setup();
-    renderChat(30);
+    const { onSend } = renderChat({ busy: true });
 
-    await user.click(screen.getByRole("button", { name: /INC-1/ }));
+    await user.type(screen.getByLabelText("Mensagem para o Nexo"), "Oi{Enter}");
 
-    expect(screen.getByRole("button", { name: /INC-1/ })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Só eu" })).toBeDisabled();
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it("não aceita mensagens depois do limite da sessão", () => {
+    renderChat({ used: 30 });
+
     expect(screen.getByLabelText("Mensagem para o Nexo")).toBeDisabled();
+    expect(screen.getByRole("button", { name: /INC-1/ })).toBeDisabled();
+  });
+
+  it("confirma o rascunho e leva o Editar para o campo de mensagem", async () => {
+    const user = userEvent.setup();
+    const { onConfirmDraft } = renderChat({ messages: [draftTurn] });
+
+    await user.click(screen.getByRole("button", { name: "Confirmar" }));
+    await user.click(screen.getByRole("button", { name: "Editar" }));
+
+    expect(onConfirmDraft).toHaveBeenCalledWith("d1");
+    expect(screen.getByLabelText("Mensagem para o Nexo")).toHaveValue(EDIT_DRAFT_PREFIX);
+    expect(screen.getByLabelText("Mensagem para o Nexo")).toHaveFocus();
+  });
+
+  it("convida a começar quando a conversa está vazia", () => {
+    renderChat({ messages: [] });
+
+    expect(screen.getByText("Como posso ajudar com TI hoje?")).toBeInTheDocument();
   });
 });

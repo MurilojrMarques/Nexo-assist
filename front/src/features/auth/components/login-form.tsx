@@ -1,25 +1,61 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, Check, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { InputField } from "@/components/ui/input-field";
-import { homePathFor } from "@/features/auth/lib/home-path";
+import { isApiError } from "@/lib/api/api-error";
+import { postLoginPath } from "@/features/auth/lib/home-path";
 import { validateLogin, type LoginErrors } from "@/features/auth/lib/validate-login";
+import { useSession } from "@/features/auth/session/session-provider";
+
+function loginErrorMessage(error: unknown): string {
+  if (isApiError(error)) {
+    if (error.status === 401) {
+      return "E-mail ou senha inválidos.";
+    }
+
+    if (error.status === 429) {
+      return error.message;
+    }
+
+    if (error.status === 0) {
+      return "Não foi possível conectar ao servidor. Tente de novo em instantes.";
+    }
+  }
+
+  return "Não foi possível entrar agora. Tente de novo em instantes.";
+}
 
 export function LoginForm() {
   const router = useRouter();
+  const next = useSearchParams().get("next");
+  const { status, user, login } = useSession();
   const [errors, setErrors] = useState<LoginErrors>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
+  useEffect(() => {
+    if (status === "authenticated" && user) {
+      router.replace(postLoginPath(user.role, next));
+    }
+  }, [status, user, next, router]);
 
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (submitting) {
+      return;
+    }
+
+    const formData = new FormData(event.currentTarget);
     const result = validateLogin({
       email: String(formData.get("email") ?? ""),
       password: String(formData.get("password") ?? ""),
     });
+
+    setFormError(null);
 
     if (!result.success) {
       setErrors(result.errors);
@@ -27,11 +63,23 @@ export function LoginForm() {
     }
 
     setErrors({});
-    router.push(homePathFor(result.data.email));
+    setSubmitting(true);
+
+    try {
+      await login(result.data.email, result.data.password);
+    } catch (error) {
+      setFormError(loginErrorMessage(error));
+      setSubmitting(false);
+    }
   }
 
   return (
-    <form noValidate onSubmit={handleSubmit} className="flex w-full max-w-[380px] flex-col gap-7">
+    <form
+      noValidate
+      onSubmit={handleSubmit}
+      aria-busy={submitting}
+      className="flex w-full max-w-[380px] flex-col gap-7"
+    >
       <div className="flex flex-col gap-2">
         <h1 className="font-serif text-[40px]/[44px] tracking-[-0.8px] text-ink">Entrar</h1>
         <p className="text-[15.5px]/[23px] text-muted">
@@ -48,6 +96,7 @@ export function LoginForm() {
           icon={Mail}
           placeholder="ana.souza@nexo.com.br"
           autoComplete="username"
+          maxLength={254}
           error={errors.email}
         />
 
@@ -58,6 +107,7 @@ export function LoginForm() {
           label="Senha"
           icon={LockKeyhole}
           autoComplete="current-password"
+          maxLength={256}
           error={errors.password}
           className={showPassword ? "" : "tracking-[2px]"}
           labelAction={
@@ -96,12 +146,19 @@ export function LoginForm() {
         </label>
       </div>
 
+      {formError && (
+        <p role="alert" className="-mt-2 rounded-lg bg-danger/8 px-3.5 py-2.5 text-[13.5px] text-danger">
+          {formError}
+        </p>
+      )}
+
       <button
         type="submit"
-        className="flex h-11 items-center justify-center gap-2 rounded-lg bg-primary text-[15.5px] font-semibold text-white shadow-[0_1px_2px_#0062c433,0_6px_16px_#0062c426] transition-colors hover:bg-primary/90"
+        disabled={submitting}
+        className="flex h-11 items-center justify-center gap-2 rounded-lg bg-primary text-[15.5px] font-semibold text-white shadow-[0_1px_2px_#0062c433,0_6px_16px_#0062c426] transition-colors hover:bg-primary/90 disabled:cursor-wait disabled:opacity-70"
       >
-        Entrar
-        <ArrowRight aria-hidden="true" className="size-4" />
+        {submitting ? "Entrando…" : "Entrar"}
+        {!submitting && <ArrowRight aria-hidden="true" className="size-4" />}
       </button>
 
       <div className="h-[30px] border-t border-line" />

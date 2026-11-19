@@ -7,6 +7,13 @@ export class UnauthorizedError extends AppError {
   }
 }
 
+export class RefreshTokenRaceError extends AppError {
+  constructor() {
+    super("A sessão acabou de ser renovada em outra aba. Tente de novo.", 401, "REFRESH_TOKEN_RACE");
+    this.name = "RefreshTokenRaceError";
+  }
+}
+
 export class ForbiddenError extends AppError {
   constructor(message = "Você não tem permissão para acessar este recurso.") {
     super(message, 403, "FORBIDDEN");

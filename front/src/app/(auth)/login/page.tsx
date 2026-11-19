@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Logo } from "@/components/brand/logo";
 import { LoginForm } from "@/features/auth/components/login-form";
@@ -24,7 +25,9 @@ export default function LoginPage() {
         </header>
 
         <div className="flex justify-center">
-          <LoginForm />
+          <Suspense fallback={<div className="h-[440px] w-full max-w-[380px]" />}>
+            <LoginForm />
+          </Suspense>
         </div>
 
         <footer className="flex flex-wrap justify-between gap-x-4 gap-y-2 text-[12.5px] text-muted">

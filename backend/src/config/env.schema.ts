@@ -20,6 +20,7 @@ export const envSchema = z.object({
   SESSION_MAX_AGE_DAYS: z.coerce.number().int().min(1).max(90).default(30),
   LOGIN_MAX_ATTEMPTS: z.coerce.number().int().min(3).max(20).default(5),
   LOGIN_LOCKOUT_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
+  REFRESH_REUSE_GRACE_SECONDS: z.coerce.number().int().min(0).max(30).default(10),
 });
 
 export type Env = z.infer<typeof envSchema>;

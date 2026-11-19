@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { AppSidebar, type SidebarItem } from "@/components/layout/app-sidebar";
-import { currentUser } from "@/features/auth/mock/current-user";
+import { AuthenticatedShell } from "@/components/layout/authenticated-shell";
+import type { SidebarItem } from "@/components/layout/app-sidebar";
 
 const employeeMenu: SidebarItem[] = [
   { href: "/chat", label: "Atendimento", icon: "chat" },
@@ -13,9 +13,8 @@ type AppLayoutProps = {
 
 export default function AppLayout({ children }: AppLayoutProps) {
   return (
-    <div className="flex h-dvh overflow-hidden">
-      <AppSidebar user={currentUser} items={employeeMenu} />
-      <main className="flex min-w-0 flex-1 flex-col">{children}</main>
-    </div>
+    <AuthenticatedShell role="EMPLOYEE" items={employeeMenu} mainClassName="flex min-w-0 flex-1 flex-col">
+      {children}
+    </AuthenticatedShell>
   );
 }

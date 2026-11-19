@@ -50,7 +50,7 @@ function setup(loginPer15Minutes = 50) {
     clock,
     hasher: new FakeHasher(),
     audit: new RecordingAudit(),
-    settings: { refreshTokenTtlDays: 7, sessionMaxAgeDays: 30, maxFailedAttempts: 5, lockoutMinutes: 15 },
+    settings: { refreshTokenTtlDays: 7, sessionMaxAgeDays: 30, maxFailedAttempts: 5, lockoutMinutes: 15, refreshReuseGraceSeconds: 10 },
   });
   const app = createApp(
     { authService, users, sessions, tokens, tickets, clock, logger: createLogger("silent"), cookies: { secure: false } },
@@ -61,7 +61,7 @@ function setup(loginPer15Minutes = 50) {
     },
   );
 
-  return { app, ana, bruno, rafael };
+  return { app, ana, bruno, rafael, clock };
 }
 
 async function login(app: ReturnType<typeof setup>["app"], email: string) {
@@ -151,17 +151,39 @@ describe("API: login e sessão", () => {
     expect(blocked.body.error.code).toBe("TOO_MANY_REQUESTS");
   });
 
-  it("renova pelo cookie, troca o refresh token e recusa o cookie antigo", async () => {
+  it("renova pelo cookie e troca o refresh token", async () => {
     const { app } = setup();
     const { cookie } = await login(app, "ana.souza@nexo.com.br");
 
     const refreshed = await request(app).post("/api/auth/refresh").set("Cookie", cookie);
-    const reused = await request(app).post("/api/auth/refresh").set("Cookie", cookie);
 
     expect(refreshed.status).toBe(200);
     expect(refreshed.body.accessToken).toBeTypeOf("string");
     expect(refreshed.headers["set-cookie"]?.[0]).not.toBe(cookie[0]);
+  });
+
+  it("em refresh simultâneo de duas abas, recusa o atrasado sem apagar o cookie", async () => {
+    const { app } = setup();
+    const { cookie } = await login(app, "ana.souza@nexo.com.br");
+
+    await request(app).post("/api/auth/refresh").set("Cookie", cookie);
+    const late = await request(app).post("/api/auth/refresh").set("Cookie", cookie);
+
+    expect(late.status).toBe(401);
+    expect(late.body.error.code).toBe("REFRESH_TOKEN_RACE");
+    expect(late.headers["set-cookie"]).toBeUndefined();
+  });
+
+  it("recusa o cookie antigo reapresentado depois da tolerância e apaga o cookie", async () => {
+    const { app, clock } = setup();
+    const { cookie } = await login(app, "ana.souza@nexo.com.br");
+
+    await request(app).post("/api/auth/refresh").set("Cookie", cookie);
+    clock.advance(11_000);
+    const reused = await request(app).post("/api/auth/refresh").set("Cookie", cookie);
+
     expect(reused.status).toBe(401);
+    expect(reused.body.error.code).toBe("UNAUTHORIZED");
     expect(reused.headers["set-cookie"]?.[0]).toMatch(/^nexo_rt=;/);
   });
 

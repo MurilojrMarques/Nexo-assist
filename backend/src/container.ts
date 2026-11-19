@@ -41,6 +41,7 @@ export function createContainer(env: Env): Container {
       sessionMaxAgeDays: env.SESSION_MAX_AGE_DAYS,
       maxFailedAttempts: env.LOGIN_MAX_ATTEMPTS,
       lockoutMinutes: env.LOGIN_LOCKOUT_MINUTES,
+      refreshReuseGraceSeconds: env.REFRESH_REUSE_GRACE_SECONDS,
     },
   });
 

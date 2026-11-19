@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Newsreader, Schibsted_Grotesk } from "next/font/google";
+import { SessionProvider } from "@/features/auth/session/session-provider";
 import "./globals.css";
 
 const schibstedGrotesk = Schibsted_Grotesk({
@@ -26,7 +27,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="pt-BR"
       className={`${schibstedGrotesk.variable} ${newsreader.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col font-sans">{children}</body>
+      <body className="flex min-h-full flex-col font-sans">
+        <SessionProvider>{children}</SessionProvider>
+      </body>
     </html>
   );
 }

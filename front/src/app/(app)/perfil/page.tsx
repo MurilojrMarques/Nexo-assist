@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/layout/page-header";
-import { AccountDetailsCard } from "@/features/profile/components/account-details-card";
-import { PasswordCard } from "@/features/profile/components/password-card";
-import { mockProfile } from "@/features/profile/mock/profile";
+import { ProfileAccount } from "@/features/profile/components/profile-account";
 
 export const metadata: Metadata = {
   title: "Meu perfil",
@@ -18,8 +16,7 @@ export default function ProfilePage() {
             <h1 className="text-2xl font-semibold tracking-[-0.4px] text-ink">Meu perfil</h1>
             <p className="text-[14.5px] text-muted">Seus dados de acesso ao service desk de TI.</p>
           </div>
-          <AccountDetailsCard name={mockProfile.name} email={mockProfile.email} />
-          <PasswordCard email={mockProfile.email} passwordUpdated={mockProfile.passwordUpdated} />
+          <ProfileAccount />
         </div>
       </div>
     </>

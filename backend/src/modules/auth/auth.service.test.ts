@@ -27,7 +27,7 @@ function setup() {
     tokens,
     audit,
     clock,
-    settings: { refreshTokenTtlDays: 7, sessionMaxAgeDays: 30, maxFailedAttempts: 5, lockoutMinutes: 15 },
+    settings: { refreshTokenTtlDays: 7, sessionMaxAgeDays: 30, maxFailedAttempts: 5, lockoutMinutes: 15, refreshReuseGraceSeconds: 10 },
   });
   const ana = users.add({ email: "ana.souza@nexo.com.br", name: "Ana Souza", passwordHash: "hashed:Senha-123" });
 
@@ -114,10 +114,24 @@ describe("AuthService.refresh", () => {
     await expect(ctx.service.refresh(refreshed.refreshToken, client)).resolves.toBeDefined();
   });
 
-  it("detecta reuso de refresh token e derruba a sessão inteira", async () => {
+  it("trata reuso logo após a troca como corrida entre abas, sem derrubar a sessão", async () => {
     const ctx = setup();
     const login = await ctx.service.login(ctx.ana.email, "Senha-123", client);
     const refreshed = await ctx.service.refresh(login.refreshToken, client);
+
+    ctx.clock.advance(5_000);
+
+    await expect(ctx.service.refresh(login.refreshToken, client)).rejects.toMatchObject({ code: "REFRESH_TOKEN_RACE" });
+    await expect(ctx.service.refresh(refreshed.refreshToken, client)).resolves.toBeDefined();
+    expect(ctx.audit.actions()).not.toContain("REFRESH_TOKEN_REUSED");
+  });
+
+  it("detecta reuso de refresh token fora da tolerância e derruba a sessão inteira", async () => {
+    const ctx = setup();
+    const login = await ctx.service.login(ctx.ana.email, "Senha-123", client);
+    const refreshed = await ctx.service.refresh(login.refreshToken, client);
+
+    ctx.clock.advance(11_000);
 
     await expect(ctx.service.refresh(login.refreshToken, client)).rejects.toThrow("Sessão expirada. Entre novamente.");
     await expect(ctx.service.refresh(refreshed.refreshToken, client)).rejects.toThrow();

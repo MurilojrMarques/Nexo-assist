@@ -29,9 +29,10 @@ type AppSidebarProps = {
   user: SidebarUser;
   items: SidebarItem[];
   defaultCollapsed?: boolean;
+  onSignOut: () => void;
 };
 
-export function AppSidebar({ user, items, defaultCollapsed = false }: AppSidebarProps) {
+export function AppSidebar({ user, items, defaultCollapsed = false, onSignOut }: AppSidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const label = collapsed ? "hidden" : "hidden md:inline";
@@ -116,15 +117,16 @@ export function AppSidebar({ user, items, defaultCollapsed = false }: AppSidebar
         </button>
       </div>
 
-      <Link
-        href="/login"
+      <button
+        type="button"
+        onClick={onSignOut}
         aria-label="Sair"
         title="Sair"
-        className="mt-1 flex h-[34px] items-center gap-2.5 rounded-lg px-2.5 text-[13.5px] font-medium text-ink-soft hover:bg-ink/5"
+        className="mt-1 flex h-[34px] items-center gap-2.5 rounded-lg px-2.5 text-left text-[13.5px] font-medium text-ink-soft hover:bg-ink/5"
       >
         <LogOut aria-hidden="true" className="size-4 shrink-0 text-muted" />
         <span className={label}>Sair</span>
-      </Link>
+      </button>
     </aside>
   );
 }

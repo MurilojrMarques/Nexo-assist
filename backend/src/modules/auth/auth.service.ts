@@ -1,5 +1,5 @@
 import { generateOpaqueToken, hashOpaqueToken } from "../../infra/security/opaque-token.js";
-import { UnauthorizedError } from "../../shared/errors/http-errors.js";
+import { RefreshTokenRaceError, UnauthorizedError } from "../../shared/errors/http-errors.js";
 import type {
   AccessTokenService,
   AuditLogger,
@@ -16,6 +16,7 @@ export type AuthSettings = {
   sessionMaxAgeDays: number;
   maxFailedAttempts: number;
   lockoutMinutes: number;
+  refreshReuseGraceSeconds: number;
 };
 
 export type AuthServiceDependencies = {
@@ -96,6 +97,10 @@ export class AuthService {
     }
 
     if (stored.usedAt) {
+      if (now.getTime() - stored.usedAt.getTime() <= settings.refreshReuseGraceSeconds * 1000) {
+        throw new RefreshTokenRaceError();
+      }
+
       await this.revokeForReuse(stored.sessionId, stored.user.id, now, client);
       throw invalidSession();
     }
@@ -121,8 +126,7 @@ export class AuthService {
     });
 
     if (!rotated) {
-      await this.revokeForReuse(stored.sessionId, stored.user.id, now, client);
-      throw invalidSession();
+      throw new RefreshTokenRaceError();
     }
 
     const user = toAuthenticatedUser(stored.user);

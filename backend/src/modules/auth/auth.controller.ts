@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { clientInfo } from "../../http/client-info.js";
 import { requireAuth } from "../../http/middlewares/authenticate.js";
-import { UnauthorizedError } from "../../shared/errors/http-errors.js";
+import { RefreshTokenRaceError, UnauthorizedError } from "../../shared/errors/http-errors.js";
 import type { UserRepository } from "./auth.ports.js";
 import { loginSchema } from "./auth.schemas.js";
 import type { AuthService } from "./auth.service.js";
@@ -42,7 +42,10 @@ export function createAuthController({ authService, users, cookies }: AuthContro
       try {
         sendTokens(res, await authService.refresh(refreshToken, clientInfo(req)), cookies);
       } catch (error) {
-        clearRefreshCookie(res, cookies);
+        if (!(error instanceof RefreshTokenRaceError)) {
+          clearRefreshCookie(res, cookies);
+        }
+
         throw error;
       }
     },

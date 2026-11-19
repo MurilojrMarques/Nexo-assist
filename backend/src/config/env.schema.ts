@@ -21,6 +21,11 @@ export const envSchema = z.object({
   LOGIN_MAX_ATTEMPTS: z.coerce.number().int().min(3).max(20).default(5),
   LOGIN_LOCKOUT_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
   REFRESH_REUSE_GRACE_SECONDS: z.coerce.number().int().min(0).max(30).default(10),
+  TICKETING_SERVICE_URL: z.url({ protocol: /^https?$/ }),
+  TICKETING_SERVICE_TOKEN: z.string().min(32, "TICKETING_SERVICE_TOKEN precisa de pelo menos 32 caracteres."),
+  TICKETING_TIMEOUT_MS: z.coerce.number().int().min(200).max(10000).default(2000),
+  TICKETING_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(6).default(4),
+  TICKETING_RETRY_BASE_MS: z.coerce.number().int().min(50).max(5000).default(400),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { parseEnv } from "./env.schema.js";
 
 const valid = {
+  TICKETING_SERVICE_URL: "http://localhost:3334",
+  TICKETING_SERVICE_TOKEN: "t".repeat(32),
   DATABASE_URL: "postgresql://nexo:senha@localhost:5432/nexo_assist",
   JWT_ACCESS_SECRET: "a".repeat(32),
 };

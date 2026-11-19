@@ -91,6 +91,4 @@ export interface AuditLogger {
   record(entry: AuditEntry): Promise<void>;
 }
 
-export interface Clock {
-  now(): Date;
-}
+export type { Clock } from "../../shared/time/clock.js";

@@ -1,6 +1,6 @@
 import type { AppConfig, AppDependencies } from "./app.js";
 import type { Env } from "./config/env.schema.js";
-import { systemClock } from "./infra/clock.js";
+import { systemClock } from "./shared/time/clock.js";
 import { createPrismaClient, type Database } from "./infra/database/prisma-client.js";
 import { createLogger } from "./infra/logging/logger.js";
 import { Argon2PasswordHasher } from "./infra/security/argon2-password-hasher.js";
@@ -9,7 +9,7 @@ import { PrismaAuditLogger } from "./modules/audit/prisma-audit-logger.js";
 import { AuthService } from "./modules/auth/auth.service.js";
 import { PrismaSessionRepository } from "./modules/auth/prisma-session.repository.js";
 import { PrismaUserRepository } from "./modules/auth/prisma-user.repository.js";
-import { PrismaTicketRepository } from "./modules/tickets/prisma-ticket.repository.js";
+import { HttpTicketGateway } from "./modules/tickets/http-ticket-gateway.js";
 
 export type Container = {
   db: Database;
@@ -52,7 +52,13 @@ export function createContainer(env: Env): Container {
       users,
       sessions,
       tokens,
-      tickets: new PrismaTicketRepository(db),
+      tickets: new HttpTicketGateway({
+        baseUrl: env.TICKETING_SERVICE_URL,
+        serviceToken: env.TICKETING_SERVICE_TOKEN,
+        timeoutMs: env.TICKETING_TIMEOUT_MS,
+        maxAttempts: env.TICKETING_MAX_ATTEMPTS,
+        baseDelayMs: env.TICKETING_RETRY_BASE_MS,
+      }),
       clock: systemClock,
       logger,
       cookies: { secure: env.NODE_ENV === "production" },

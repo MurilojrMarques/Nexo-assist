@@ -1,17 +1,51 @@
-export type TicketSummary = {
+import type {
+  AffectedScope,
+  TicketCategory,
+  TicketPriority,
+  TicketStatus,
+  TicketType,
+} from "../../domain/service-desk/types.js";
+
+export type TicketView = {
   code: string;
-  type: "INCIDENT" | "REQUEST";
-  category: "ACCESS" | "NETWORK_VPN" | "HARDWARE" | "SOFTWARE" | "EMAIL" | "OTHER";
-  priority: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
-  status: "OPEN" | "IN_PROGRESS" | "WAITING_ANALYST" | "APPROVED" | "RESOLVED" | "CLOSED";
-  affectedScope: "ONLY_ME" | "TEAM" | "COMPANY" | "UNKNOWN";
+  type: TicketType;
+  category: TicketCategory;
+  priority: TicketPriority;
+  status: TicketStatus;
+  affectedScope: AffectedScope;
   title: string;
-  dueAt: Date | null;
-  lastActivityAt: Date;
-  resolvedAt: Date | null;
-  createdAt: Date;
+  description: string;
+  dueAt: string | null;
+  lastActivityAt: string;
+  resolvedAt: string | null;
+  createdAt: string;
+  overdue: boolean;
+  reopenable: boolean;
 };
 
-export interface TicketReader {
-  listByRequester(requesterId: string): Promise<TicketSummary[]>;
+export type RelatedTickets = {
+  open: TicketView[];
+  reopenable: TicketView[];
+};
+
+export type CreateTicketInput = {
+  requesterId: string;
+  type: TicketType;
+  category: TicketCategory;
+  priority: TicketPriority;
+  affectedScope: AffectedScope;
+  title: string;
+  description: string;
+};
+
+export type TicketStatusFilter = "open" | "all";
+
+export interface TicketGateway {
+  listByRequester(requesterId: string, status?: TicketStatusFilter): Promise<TicketView[]>;
+  getForRequester(code: string, requesterId: string): Promise<TicketView>;
+  findRelated(requesterId: string, category: TicketCategory): Promise<RelatedTickets>;
+  create(input: CreateTicketInput, idempotencyKey: string): Promise<TicketView>;
+  addComment(code: string, requesterId: string, comment: string, idempotencyKey: string): Promise<TicketView>;
+  reopen(code: string, requesterId: string, reason: string, idempotencyKey: string): Promise<TicketView>;
+  transfer(code: string, requesterId: string, team: string, summary: string, idempotencyKey: string): Promise<TicketView>;
 }

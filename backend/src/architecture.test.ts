@@ -36,4 +36,27 @@ describe("arquitetura", () => {
 
     expect(offenders).toEqual([]);
   });
+
+  it("só o serviço de chamados acessa as tabelas de chamados", () => {
+    const ticketingModels = /\.(ticket|ticketUpdate|ticketSequence|ticketIdempotencyKey)\.(find|create|update|upsert|delete|count|aggregate)/;
+    const offenders = sourceFiles(SOURCE_ROOT)
+      .map((file) => relative(SOURCE_ROOT, file))
+      .filter((file) => !/^ticketing[\\/]/.test(file))
+      .filter((file) => ticketingModels.test(readFileSync(join(SOURCE_ROOT, file), "utf8")));
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("o serviço de chamados não depende dos módulos da aplicação, e vice-versa", () => {
+    const files = sourceFiles(SOURCE_ROOT).map((file) => relative(SOURCE_ROOT, file));
+    const ticketingImportsApp = files
+      .filter((file) => /^ticketing[\\/]/.test(file))
+      .filter((file) => /from "\.\.\/(\.\.\/)?modules\//.test(readFileSync(join(SOURCE_ROOT, file), "utf8")));
+    const appImportsTicketing = files
+      .filter((file) => !/^(ticketing|testing)[\\/]/.test(file) && !file.endsWith(".test.ts"))
+      .filter((file) => /from "(\.\.\/)+ticketing\//.test(readFileSync(join(SOURCE_ROOT, file), "utf8")));
+
+    expect(ticketingImportsApp).toEqual([]);
+    expect(appImportsTicketing).toEqual([]);
+  });
 });

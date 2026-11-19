@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV !== "production";
-const apiOrigin = new URL(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3333/api").origin;
+const apiProxyTarget = new URL(process.env.API_PROXY_TARGET ?? "http://localhost:3333").origin;
 
 const contentSecurityPolicy = [
   "default-src 'self'",
@@ -9,7 +9,7 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self'",
-  `connect-src 'self' ${apiOrigin}${isDev ? " ws: wss:" : ""}`,
+  `connect-src 'self'${isDev ? " ws: wss:" : ""}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -35,6 +35,9 @@ const nextConfig: NextConfig = {
   },
   headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
+  },
+  rewrites() {
+    return [{ source: "/api/:path*", destination: `${apiProxyTarget}/api/:path*` }];
   },
   redirects() {
     return [{ source: "/", destination: "/login", permanent: false }];

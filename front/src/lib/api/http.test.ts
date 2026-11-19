@@ -10,24 +10,22 @@ function jsonResponse(status: number, body: unknown) {
 
 describe("request", () => {
   beforeEach(() => {
-    vi.stubEnv("NEXT_PUBLIC_API_URL", "http://localhost:3333/api/");
     vi.stubGlobal("fetch", fetchMock);
   });
 
   afterEach(() => {
-    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     fetchMock.mockReset();
   });
 
-  it("chama a API com cookies, sem cache e com o token Bearer", async () => {
+  it("chama a API pela mesma origem, sem cache e com o token Bearer", async () => {
     fetchMock.mockResolvedValue(jsonResponse(200, { ok: true }));
 
     await request("/auth/me", { token: "abc.def.ghi" });
 
     const [url, init] = fetchMock.mock.calls[0]!;
-    expect(url).toBe("http://localhost:3333/api/auth/me");
-    expect(init).toMatchObject({ method: "GET", credentials: "include", cache: "no-store" });
+    expect(url).toBe("/api/auth/me");
+    expect(init).toMatchObject({ method: "GET", credentials: "same-origin", cache: "no-store" });
     expect(init?.headers).toMatchObject({ Authorization: "Bearer abc.def.ghi" });
   });
 

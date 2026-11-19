@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/components/layout/page-header";
 import { ProfileAccount } from "@/features/profile/components/profile-account";
 
+export const instant = false;
+
 export const metadata: Metadata = {
   title: "Meu perfil",
 };

@@ -4,12 +4,13 @@ import { createApp } from "../app.js";
 import { createLogger } from "../infra/logging/logger.js";
 import { JoseAccessTokenService } from "../infra/security/jose-access-token-service.js";
 import { AuthService } from "../modules/auth/auth.service.js";
-import type { TicketReader, TicketSummary } from "../modules/tickets/ticket.types.js";
+import type { TicketGateway, TicketView } from "../modules/tickets/ticket.types.js";
+import { NotFoundError } from "../shared/errors/http-errors.js";
 import { FakeClock, FakeHasher, InMemorySessions, InMemoryUsers, RecordingAudit } from "../testing/in-memory-auth.js";
 
 const tokenSettings = { secret: "s".repeat(48), issuer: "nexo-assist-api", audience: "nexo-assist-web", ttlSeconds: 900 };
 
-function ticket(code: string): TicketSummary {
+function ticket(code: string): TicketView {
   return {
     code,
     type: "INCIDENT",
@@ -18,10 +19,35 @@ function ticket(code: string): TicketSummary {
     status: "OPEN",
     affectedScope: "ONLY_ME",
     title: `Chamado ${code}`,
+    description: "Descrição",
     dueAt: null,
-    lastActivityAt: new Date("2026-11-18T12:00:00Z"),
+    lastActivityAt: "2026-11-18T12:00:00.000Z",
     resolvedAt: null,
-    createdAt: new Date("2026-11-18T12:00:00Z"),
+    createdAt: "2026-11-18T12:00:00.000Z",
+    overdue: false,
+    reopenable: false,
+  };
+}
+
+function fakeGateway(ticketsByRequester: Map<string, TicketView[]>): TicketGateway {
+  const unsupported = async (): Promise<never> => {
+    throw new Error("não usado neste teste");
+  };
+
+  return {
+    listByRequester: async (id) => ticketsByRequester.get(id) ?? [],
+    getForRequester: async (code, id) => {
+      const found = (ticketsByRequester.get(id) ?? []).find((item) => item.code === code);
+      if (!found) {
+        throw new NotFoundError("Chamado não encontrado.");
+      }
+      return found;
+    },
+    findRelated: unsupported,
+    create: unsupported,
+    addComment: unsupported,
+    reopen: unsupported,
+    transfer: unsupported,
   };
 }
 
@@ -42,7 +68,7 @@ function setup(loginPer15Minutes = 50) {
     [ana.id, [ticket("INC-20311")]],
     [bruno.id, [ticket("INC-20320")]],
   ]);
-  const tickets: TicketReader = { listByRequester: async (id) => ticketsByRequester.get(id) ?? [] };
+  const tickets = fakeGateway(ticketsByRequester);
   const authService = new AuthService({
     users,
     sessions,
@@ -224,7 +250,21 @@ describe("API: separação de acesso", () => {
     const response = await request(app).get("/api/employee/tickets").set("Authorization", `Bearer ${token}`);
 
     expect(response.status).toBe(200);
-    expect(response.body.tickets.map((item: TicketSummary) => item.code)).toEqual(["INC-20311"]);
+    expect(response.body.tickets.map((item: TicketView) => item.code)).toEqual(["INC-20311"]);
+  });
+
+  it("funcionário abre o próprio chamado, mas o de outra pessoa responde como inexistente", async () => {
+    const { app } = setup();
+    const { token } = await login(app, "ana.souza@nexo.com.br");
+
+    const own = await request(app).get("/api/employee/tickets/INC-20311").set("Authorization", `Bearer ${token}`);
+    const other = await request(app).get("/api/employee/tickets/INC-20320").set("Authorization", `Bearer ${token}`);
+    const invalid = await request(app).get("/api/employee/tickets/DROP%20TABLE").set("Authorization", `Bearer ${token}`);
+
+    expect(own.status).toBe(200);
+    expect(own.body.ticket.code).toBe("INC-20311");
+    expect(other.status).toBe(404);
+    expect(invalid.status).toBe(400);
   });
 
   it("funcionário não acessa a área do suporte, nem para ver chamados de outra pessoa", async () => {
@@ -247,7 +287,7 @@ describe("API: separação de acesso", () => {
     const employeeArea = await request(app).get("/api/employee/tickets").set("Authorization", `Bearer ${token}`);
 
     expect(support.status).toBe(200);
-    expect(support.body.tickets.map((item: TicketSummary) => item.code)).toEqual(["INC-20320"]);
+    expect(support.body.tickets.map((item: TicketView) => item.code)).toEqual(["INC-20320"]);
     expect(employeeArea.status).toBe(403);
   });
 

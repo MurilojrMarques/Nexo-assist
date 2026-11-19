@@ -28,6 +28,20 @@ export class NotFoundError extends AppError {
   }
 }
 
+export class ConflictError extends AppError {
+  constructor(message: string) {
+    super(message, 409, "CONFLICT");
+    this.name = "ConflictError";
+  }
+}
+
+export class ServiceUnavailableError extends AppError {
+  constructor(message: string, code = "SERVICE_UNAVAILABLE") {
+    super(message, 503, code);
+    this.name = "ServiceUnavailableError";
+  }
+}
+
 export class TooManyRequestsError extends AppError {
   constructor(message = "Muitas tentativas. Aguarde alguns minutos e tente de novo.") {
     super(message, 429, "TOO_MANY_REQUESTS");

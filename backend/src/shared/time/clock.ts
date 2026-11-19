@@ -1,4 +1,6 @@
-import type { Clock } from "../modules/auth/auth.ports.js";
+export interface Clock {
+  now(): Date;
+}
 
 export const systemClock: Clock = {
   now: () => new Date(),

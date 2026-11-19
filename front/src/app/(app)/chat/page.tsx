@@ -5,6 +5,8 @@ import { AssistantStatus } from "@/features/chat/components/assistant-status";
 import { ChatView } from "@/features/chat/components/chat-view";
 import { getScenario } from "@/features/chat/mock/scenarios";
 
+export const instant = false;
+
 export const metadata: Metadata = {
   title: "Atendimento",
 };

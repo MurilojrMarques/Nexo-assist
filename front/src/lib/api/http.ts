@@ -9,15 +9,7 @@ export type RequestOptions = {
 
 export type RequestFn = <T>(path: string, options?: RequestOptions) => Promise<T>;
 
-export function apiBaseUrl(): string {
-  const url = process.env.NEXT_PUBLIC_API_URL;
-
-  if (!url) {
-    throw new Error("Defina NEXT_PUBLIC_API_URL com o endereço da API.");
-  }
-
-  return url.replace(/\/+$/, "");
-}
+export const API_BASE_PATH = "/api";
 
 function buildHeaders(options: RequestOptions): HeadersInit {
   const headers: Record<string, string> = { Accept: "application/json" };
@@ -37,11 +29,11 @@ export const request: RequestFn = async <T>(path: string, options: RequestOption
   let response: Response;
 
   try {
-    response = await fetch(`${apiBaseUrl()}${path}`, {
+    response = await fetch(`${API_BASE_PATH}${path}`, {
       method: options.method ?? "GET",
       headers: buildHeaders(options),
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
-      credentials: "include",
+      credentials: "same-origin",
       cache: "no-store",
       signal: options.signal,
     });

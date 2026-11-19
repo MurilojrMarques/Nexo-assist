@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+  experimental: {
+    turbopackFileSystemCacheForDev: process.env.NEXT_DEV_FS_CACHE !== "false",
+  },
   redirects() {
     return [{ source: "/", destination: "/login", permanent: false }];
   },

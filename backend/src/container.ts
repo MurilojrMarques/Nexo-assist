@@ -9,6 +9,11 @@ import { PrismaAuditLogger } from "./modules/audit/prisma-audit-logger.js";
 import { AuthService } from "./modules/auth/auth.service.js";
 import { PrismaSessionRepository } from "./modules/auth/prisma-session.repository.js";
 import { PrismaUserRepository } from "./modules/auth/prisma-user.repository.js";
+import { MastraServiceDeskAgent, UnavailableServiceDeskAgent } from "./agent/mastra-service-desk-agent.js";
+import { ServiceDeskActions } from "./agent/service-desk-actions.js";
+import { ConversationService } from "./modules/conversations/conversation.service.js";
+import { PrismaConversationStore } from "./modules/conversations/prisma-conversation-store.js";
+import { PrismaKnowledgeBase } from "./modules/knowledge/prisma-knowledge-base.js";
 import { HttpTicketGateway } from "./modules/tickets/http-ticket-gateway.js";
 
 export type Container = {
@@ -45,6 +50,34 @@ export function createContainer(env: Env): Container {
     },
   });
 
+  const tickets = new HttpTicketGateway({
+    baseUrl: env.TICKETING_SERVICE_URL,
+    serviceToken: env.TICKETING_SERVICE_TOKEN,
+    timeoutMs: env.TICKETING_TIMEOUT_MS,
+    maxAttempts: env.TICKETING_MAX_ATTEMPTS,
+    baseDelayMs: env.TICKETING_RETRY_BASE_MS,
+  });
+  const store = new PrismaConversationStore(db);
+  const actions = new ServiceDeskActions({ tickets, knowledge: new PrismaKnowledgeBase(db), drafts: store, clock: systemClock });
+  const agent = env.ANTHROPIC_API_KEY
+    ? new MastraServiceDeskAgent(
+        {
+          apiKey: env.ANTHROPIC_API_KEY,
+          agentModel: env.AGENT_MODEL,
+          triageModel: env.TRIAGE_MODEL,
+          maxSteps: env.AGENT_MAX_STEPS,
+          maxOutputTokens: env.AGENT_MAX_OUTPUT_TOKENS,
+        },
+        actions,
+        systemClock,
+        logger,
+      )
+    : new UnavailableServiceDeskAgent();
+
+  if (!env.ANTHROPIC_API_KEY) {
+    logger.warn("ANTHROPIC_API_KEY ausente: o assistente vai responder 503 até a chave ser configurada.");
+  }
+
   return {
     db,
     dependencies: {
@@ -52,13 +85,16 @@ export function createContainer(env: Env): Container {
       users,
       sessions,
       tokens,
-      tickets: new HttpTicketGateway({
-        baseUrl: env.TICKETING_SERVICE_URL,
-        serviceToken: env.TICKETING_SERVICE_TOKEN,
-        timeoutMs: env.TICKETING_TIMEOUT_MS,
-        maxAttempts: env.TICKETING_MAX_ATTEMPTS,
-        baseDelayMs: env.TICKETING_RETRY_BASE_MS,
+      tickets,
+      conversations: new ConversationService({
+        store,
+        agent,
+        tickets,
+        clock: systemClock,
+        logger,
+        historyWindow: env.AGENT_HISTORY_WINDOW,
       }),
+      messagesPerMinute: env.MESSAGES_PER_MINUTE,
       clock: systemClock,
       logger,
       cookies: { secure: env.NODE_ENV === "production" },

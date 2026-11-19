@@ -2,6 +2,18 @@ import type { Request, RequestHandler } from "express";
 import { ipKeyGenerator, rateLimit } from "express-rate-limit";
 import { TooManyRequestsError } from "../../shared/errors/http-errors.js";
 
+export function createMessageLimiter(perMinute: number): RequestHandler {
+  return rateLimit({
+    windowMs: 60_000,
+    limit: perMinute,
+    keyGenerator: (req) => req.auth?.userId ?? ipKeyGenerator(req.ip ?? "unknown"),
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    handler: (_req, _res, next) =>
+      next(new TooManyRequestsError("Você está mandando mensagens rápido demais. Aguarde um minuto.")),
+  });
+}
+
 export type RateLimiters = {
   api: RequestHandler;
   login: RequestHandler;

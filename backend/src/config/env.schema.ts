@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { pricedModels } from "../domain/cost/model-pricing.js";
 
 const commaSeparatedUrls = z
   .string()
@@ -26,6 +27,17 @@ export const envSchema = z.object({
   TICKETING_TIMEOUT_MS: z.coerce.number().int().min(200).max(10000).default(2000),
   TICKETING_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(6).default(4),
   TICKETING_RETRY_BASE_MS: z.coerce.number().int().min(50).max(5000).default(400),
+  ANTHROPIC_API_KEY: z
+    .string()
+    .trim()
+    .transform((value) => value || undefined)
+    .optional(),
+  AGENT_MODEL: z.enum(pricedModels).default("claude-sonnet-5-5"),
+  TRIAGE_MODEL: z.enum(pricedModels).default("claude-haiku-5-5"),
+  AGENT_MAX_STEPS: z.coerce.number().int().min(1).max(10).default(5),
+  AGENT_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(256).max(4096).default(600),
+  AGENT_HISTORY_WINDOW: z.coerce.number().int().min(2).max(30).default(12),
+  MESSAGES_PER_MINUTE: z.coerce.number().int().min(1).max(120).default(12),
 });
 
 export type Env = z.infer<typeof envSchema>;

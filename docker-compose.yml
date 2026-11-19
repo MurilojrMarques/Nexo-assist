@@ -34,6 +34,9 @@ services:
       SEED_USER_PASSWORD: ${SEED_USER_PASSWORD:-}
       TICKETING_SERVICE_URL: http://tickets:3334
       TICKETING_SERVICE_TOKEN: ${TICKETING_SERVICE_TOKEN:?Defina TICKETING_SERVICE_TOKEN no .env da raiz}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AGENT_MODEL: ${AGENT_MODEL:-claude-sonnet-5-5}
+      TRIAGE_MODEL: ${TRIAGE_MODEL:-claude-haiku-5-5}
     depends_on:
       db:
         condition: service_healthy

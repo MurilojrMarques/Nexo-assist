@@ -13,6 +13,7 @@ import type { Logger } from "./infra/logging/logger.js";
 import type { Clock, SessionRepository, UserRepository, AccessTokenService } from "./modules/auth/auth.ports.js";
 import type { AuthService } from "./modules/auth/auth.service.js";
 import type { CookieSettings } from "./modules/auth/refresh-cookie.js";
+import type { ConversationService } from "./modules/conversations/conversation.service.js";
 import type { TicketGateway } from "./modules/tickets/ticket.types.js";
 
 export type AppDependencies = {
@@ -21,6 +22,8 @@ export type AppDependencies = {
   sessions: Pick<SessionRepository, "findActiveSessionUser">;
   tokens: Pick<AccessTokenService, "verify">;
   tickets: TicketGateway;
+  conversations: ConversationService;
+  messagesPerMinute: number;
   clock: Clock;
   logger: Logger;
   cookies: CookieSettings;

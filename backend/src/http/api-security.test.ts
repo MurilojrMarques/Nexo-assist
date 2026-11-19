@@ -5,7 +5,10 @@ import { createLogger } from "../infra/logging/logger.js";
 import { JoseAccessTokenService } from "../infra/security/jose-access-token-service.js";
 import { AuthService } from "../modules/auth/auth.service.js";
 import type { TicketGateway, TicketView } from "../modules/tickets/ticket.types.js";
+import { ConversationService } from "../modules/conversations/conversation.service.js";
 import { NotFoundError } from "../shared/errors/http-errors.js";
+import { FakeServiceDeskAgent } from "../testing/fake-service-desk-agent.js";
+import { InMemoryConversationStore } from "../testing/in-memory-conversation-store.js";
 import { FakeClock, FakeHasher, InMemorySessions, InMemoryUsers, RecordingAudit } from "../testing/in-memory-auth.js";
 
 const tokenSettings = { secret: "s".repeat(48), issuer: "nexo-assist-api", audience: "nexo-assist-web", ttlSeconds: 900 };
@@ -78,8 +81,18 @@ function setup(loginPer15Minutes = 50) {
     audit: new RecordingAudit(),
     settings: { refreshTokenTtlDays: 7, sessionMaxAgeDays: 30, maxFailedAttempts: 5, lockoutMinutes: 15, refreshReuseGraceSeconds: 10 },
   });
+  const logger = createLogger("silent");
+  const people = new Map([...users.records.values()].map((user) => [user.id, { name: user.name, department: user.department }]));
+  const conversations = new ConversationService({
+    store: new InMemoryConversationStore(people),
+    agent: new FakeServiceDeskAgent(),
+    tickets,
+    clock,
+    logger,
+    historyWindow: 12,
+  });
   const app = createApp(
-    { authService, users, sessions, tokens, tickets, clock, logger: createLogger("silent"), cookies: { secure: false } },
+    { authService, users, sessions, tokens, tickets, conversations, messagesPerMinute: 100, clock, logger, cookies: { secure: false } },
     {
       corsOrigins: ["http://localhost:3000"],
       trustProxy: false,
@@ -296,6 +309,99 @@ describe("API: separação de acesso", () => {
     const { token } = await login(app, "rafael.lima@nexo.com.br");
     const response = await request(app)
       .get("/api/support/employees/1%20OR%201=1/tickets")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(response.status).toBe(400);
+  });
+});
+
+describe("API: conversas", () => {
+  async function startConversation(app: ReturnType<typeof setup>["app"], token: string): Promise<string> {
+    const response = await request(app).post("/api/employee/conversations").set("Authorization", `Bearer ${token}`);
+    expect(response.status).toBe(201);
+    return response.body.conversation.id as string;
+  }
+
+  it("responde a mensagem do funcionário em streaming (SSE)", async () => {
+    const { app } = setup();
+    const { token } = await login(app, "ana.souza@nexo.com.br");
+    const conversationId = await startConversation(app, token);
+
+    const response = await request(app)
+      .post(`/api/employee/conversations/${conversationId}/messages`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ content: "Meu notebook está lento" });
+
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toContain("text/event-stream");
+    expect(response.text.match(/^event: (\w+)$/gm)).toEqual([
+      "event: message",
+      "event: text",
+      "event: message",
+      "event: conversation",
+      "event: done",
+    ]);
+  });
+
+  it("erros antes do streaming saem como JSON comum", async () => {
+    const { app } = setup();
+    const { token } = await login(app, "ana.souza@nexo.com.br");
+    const conversationId = await startConversation(app, token);
+
+    const empty = await request(app)
+      .post(`/api/employee/conversations/${conversationId}/messages`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ content: "   " });
+
+    expect(empty.status).toBe(400);
+    expect(empty.headers["content-type"]).toContain("application/json");
+  });
+
+  it("conversa de outra pessoa responde como inexistente", async () => {
+    const { app } = setup();
+    const ana = await login(app, "ana.souza@nexo.com.br");
+    const bruno = await login(app, "bruno.tavares@nexo.com.br");
+    const conversationId = await startConversation(app, ana.token);
+
+    const read = await request(app).get(`/api/employee/conversations/${conversationId}`).set("Authorization", `Bearer ${bruno.token}`);
+    const write = await request(app)
+      .post(`/api/employee/conversations/${conversationId}/messages`)
+      .set("Authorization", `Bearer ${bruno.token}`)
+      .send({ content: "oi" });
+
+    expect(read.status).toBe(404);
+    expect(write.status).toBe(404);
+  });
+
+  it("funcionário não usa o console e analista não fala como funcionário", async () => {
+    const { app } = setup();
+    const ana = await login(app, "ana.souza@nexo.com.br");
+    const rafael = await login(app, "rafael.lima@nexo.com.br");
+    const conversationId = await startConversation(app, ana.token);
+
+    const queue = await request(app).get("/api/support/conversations").set("Authorization", `Bearer ${ana.token}`);
+    const assume = await request(app)
+      .post(`/api/support/conversations/${conversationId}/assume`)
+      .set("Authorization", `Bearer ${ana.token}`);
+    const impersonate = await request(app)
+      .post(`/api/employee/conversations/${conversationId}/messages`)
+      .set("Authorization", `Bearer ${rafael.token}`)
+      .send({ content: "oi" });
+    const analystQueue = await request(app).get("/api/support/conversations").set("Authorization", `Bearer ${rafael.token}`);
+
+    expect(queue.status).toBe(403);
+    expect(assume.status).toBe(403);
+    expect(impersonate.status).toBe(403);
+    expect(analystQueue.status).toBe(200);
+    expect(analystQueue.body.conversations).toHaveLength(1);
+  });
+
+  it("valida os identificadores de conversa e rascunho", async () => {
+    const { app } = setup();
+    const { token } = await login(app, "ana.souza@nexo.com.br");
+
+    const response = await request(app)
+      .post("/api/employee/conversations/1%20OR%201=1/drafts/abc/confirm")
       .set("Authorization", `Bearer ${token}`);
 
     expect(response.status).toBe(400);

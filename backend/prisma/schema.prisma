@@ -315,6 +315,7 @@ model TicketDraft {
   type             TicketType
   category         TicketCategory
   priority         TicketPriority
+  priorityRule     String?        @map("priority_rule") @db.VarChar(160)
   affectedScope    AffectedScope  @map("affected_scope")
   title            String         @db.VarChar(160)
   description      String
@@ -331,20 +332,23 @@ model TicketDraft {
 }
 
 model AgentDecision {
-  id             String   @id @default(uuid(7)) @db.Uuid
-  conversationId String   @map("conversation_id") @db.Uuid
-  messageId      String   @unique @map("message_id") @db.Uuid
-  intent         String   @db.VarChar(60)
-  understanding  String
-  action         String   @db.VarChar(60)
-  confidence     Float
-  rationale      String
-  steps          Json
-  model          String   @db.VarChar(80)
-  inputTokens    Int      @map("input_tokens")
-  outputTokens   Int      @map("output_tokens")
-  latencyMs      Int      @map("latency_ms")
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  id               String   @id @default(uuid(7)) @db.Uuid
+  conversationId   String   @map("conversation_id") @db.Uuid
+  messageId        String   @unique @map("message_id") @db.Uuid
+  intent           String   @db.VarChar(60)
+  understanding    String
+  action           String   @db.VarChar(60)
+  confidence       Float
+  rationale        String
+  steps            Json
+  model            String   @db.VarChar(80)
+  inputTokens      Int      @map("input_tokens")
+  outputTokens     Int      @map("output_tokens")
+  cacheReadTokens  Int      @default(0) @map("cache_read_tokens")
+  cacheWriteTokens Int      @default(0) @map("cache_write_tokens")
+  costUsd          Decimal  @default(0) @map("cost_usd") @db.Decimal(12, 6)
+  latencyMs        Int      @map("latency_ms")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   message      Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)

@@ -19,6 +19,7 @@
     "db:generate": "prisma generate"
   },
   "dependencies": {
+    "@mastra/core": "1.82.0",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
     "argon2": "^0.45.2",

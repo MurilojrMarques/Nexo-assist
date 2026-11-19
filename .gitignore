@@ -4,6 +4,7 @@ dist/
 .next/
 out/
 *.tsbuildinfo
+**/src/generated/
 
 .env
 .env.*

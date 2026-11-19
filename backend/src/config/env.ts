@@ -1,12 +1,8 @@
+import "dotenv/config";
 import { z } from "zod";
+import { parseEnv } from "./env.schema.js";
 
-const envSchema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  PORT: z.coerce.number().int().positive().default(3333),
-  CORS_ORIGIN: z.string().default("http://localhost:3000"),
-});
-
-const parsed = envSchema.safeParse(process.env);
+const parsed = parseEnv(process.env);
 
 if (!parsed.success) {
   console.error("Variáveis de ambiente inválidas:\n" + z.prettifyError(parsed.error));

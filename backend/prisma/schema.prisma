@@ -1,0 +1,410 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["app", "ticketing"]
+}
+
+enum Role {
+  EMPLOYEE
+  ANALYST
+
+  @@schema("app")
+}
+
+enum SessionRevocationReason {
+  LOGOUT
+  REFRESH_TOKEN_REUSE
+  PASSWORD_CHANGED
+  EXPIRED
+
+  @@schema("app")
+}
+
+enum AuditAction {
+  LOGIN_SUCCEEDED
+  LOGIN_FAILED
+  ACCOUNT_LOCKED
+  TOKEN_REFRESHED
+  REFRESH_TOKEN_REUSED
+  LOGOUT
+
+  @@schema("app")
+}
+
+enum ConversationStatus {
+  WITH_AGENT
+  WAITING_ANALYST
+  WITH_ANALYST
+  CLOSED
+
+  @@schema("app")
+}
+
+enum MessageAuthor {
+  EMPLOYEE
+  AGENT
+  ANALYST
+
+  @@schema("app")
+}
+
+enum ConversationEventType {
+  TRANSFERRED
+  ASSUMED
+  RETURNED_TO_AGENT
+  CLOSED
+
+  @@schema("app")
+}
+
+enum HandoffReason {
+  EMPLOYEE_REQUEST
+  CRITICAL_ISSUE
+  OVERDUE_TICKET
+  LOW_CONFIDENCE
+
+  @@schema("app")
+}
+
+enum DraftAction {
+  CREATE
+  UPDATE
+
+  @@schema("app")
+}
+
+enum DraftStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  EXPIRED
+
+  @@schema("app")
+}
+
+enum TicketType {
+  INCIDENT
+  REQUEST
+
+  @@schema("ticketing")
+}
+
+enum TicketCategory {
+  ACCESS
+  NETWORK_VPN
+  HARDWARE
+  SOFTWARE
+  EMAIL
+  OTHER
+
+  @@schema("ticketing")
+}
+
+enum TicketPriority {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+
+  @@schema("ticketing")
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_ANALYST
+  APPROVED
+  RESOLVED
+  CLOSED
+
+  @@schema("ticketing")
+}
+
+enum AffectedScope {
+  ONLY_ME
+  TEAM
+  COMPANY
+  UNKNOWN
+
+  @@schema("ticketing")
+}
+
+enum TicketUpdateKind {
+  CREATED
+  COMMENT
+  STATUS_CHANGED
+  PRIORITY_CHANGED
+  REOPENED
+  TRANSFERRED
+
+  @@schema("ticketing")
+}
+
+model User {
+  id                  String    @id @default(uuid(7)) @db.Uuid
+  email               String    @unique @db.VarChar(254)
+  name                String    @db.VarChar(120)
+  department          String    @db.VarChar(80)
+  role                Role      @default(EMPLOYEE)
+  team                String?   @db.VarChar(80)
+  passwordHash        String    @map("password_hash")
+  passwordChangedAt   DateTime  @default(now()) @map("password_changed_at") @db.Timestamptz(3)
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime? @map("locked_until") @db.Timestamptz(3)
+  isActive            Boolean   @default(true) @map("is_active")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  sessions              Session[]
+  auditLogs             AuditLog[]
+  conversations         Conversation[]      @relation("ConversationEmployee")
+  attendedConversations Conversation[]      @relation("ConversationAnalyst")
+  messages              Message[]
+  conversationEvents    ConversationEvent[]
+  requestedTickets      Ticket[]            @relation("TicketRequester")
+  assignedTickets       Ticket[]            @relation("TicketAssignee")
+  ticketUpdates         TicketUpdate[]
+
+  @@map("users")
+  @@schema("app")
+}
+
+model Session {
+  id            String                   @id @default(uuid(7)) @db.Uuid
+  userId        String                   @map("user_id") @db.Uuid
+  expiresAt     DateTime                 @map("expires_at") @db.Timestamptz(3)
+  revokedAt     DateTime?                @map("revoked_at") @db.Timestamptz(3)
+  revokedReason SessionRevocationReason? @map("revoked_reason")
+  ipAddress     String?                  @map("ip_address") @db.VarChar(45)
+  userAgent     String?                  @map("user_agent") @db.VarChar(255)
+  createdAt     DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastSeenAt    DateTime                 @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  @@index([userId])
+  @@map("sessions")
+  @@schema("app")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  sessionId String    @map("session_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.Char(64)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("refresh_tokens")
+  @@schema("app")
+}
+
+model AuditLog {
+  id        String      @id @default(uuid(7)) @db.Uuid
+  actorId   String?     @map("actor_id") @db.Uuid
+  action    AuditAction
+  ipAddress String?     @map("ip_address") @db.VarChar(45)
+  userAgent String?     @map("user_agent") @db.VarChar(255)
+  metadata  Json?
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+  @@schema("app")
+}
+
+model KnowledgeArticle {
+  id        String          @id @default(uuid(7)) @db.Uuid
+  slug      String          @unique @db.VarChar(120)
+  title     String          @db.VarChar(160)
+  content   String
+  category  TicketCategory?
+  tags      String[]
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("knowledge_articles")
+  @@schema("app")
+}
+
+model Conversation {
+  id                String             @id @default(uuid(7)) @db.Uuid
+  employeeId        String             @map("employee_id") @db.Uuid
+  status            ConversationStatus @default(WITH_AGENT)
+  assignedAnalystId String?            @map("assigned_analyst_id") @db.Uuid
+  focusTicketCode   String?            @map("focus_ticket_code") @db.VarChar(20)
+  handoffReason     HandoffReason?     @map("handoff_reason")
+  handoffSummary    String?            @map("handoff_summary")
+  messageCount      Int                @default(0) @map("message_count")
+  lastMessageAt     DateTime           @default(now()) @map("last_message_at") @db.Timestamptz(3)
+  closedAt          DateTime?          @map("closed_at") @db.Timestamptz(3)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  employee        User                @relation("ConversationEmployee", fields: [employeeId], references: [id], onDelete: Restrict)
+  assignedAnalyst User?               @relation("ConversationAnalyst", fields: [assignedAnalystId], references: [id], onDelete: SetNull)
+  messages        Message[]
+  events          ConversationEvent[]
+  drafts          TicketDraft[]
+  decisions       AgentDecision[]
+
+  @@index([employeeId, lastMessageAt])
+  @@index([status, lastMessageAt])
+  @@index([assignedAnalystId, status])
+  @@map("conversations")
+  @@schema("app")
+}
+
+model Message {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  conversationId String        @map("conversation_id") @db.Uuid
+  author         MessageAuthor
+  authorId       String?       @map("author_id") @db.Uuid
+  content        String
+  parts          Json?
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  conversation Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  authorUser   User?          @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  decision     AgentDecision?
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+  @@schema("app")
+}
+
+model ConversationEvent {
+  id             String                @id @default(uuid(7)) @db.Uuid
+  conversationId String                @map("conversation_id") @db.Uuid
+  type           ConversationEventType
+  actorId        String?               @map("actor_id") @db.Uuid
+  reason         HandoffReason?
+  team           String?               @db.VarChar(80)
+  summary        String?
+  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  actor        User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@map("conversation_events")
+  @@schema("app")
+}
+
+model TicketDraft {
+  id               String         @id @default(uuid(7)) @db.Uuid
+  number           Int            @unique @default(autoincrement())
+  conversationId   String         @map("conversation_id") @db.Uuid
+  action           DraftAction
+  status           DraftStatus    @default(PENDING)
+  targetTicketCode String?        @map("target_ticket_code") @db.VarChar(20)
+  resultTicketCode String?        @map("result_ticket_code") @db.VarChar(20)
+  type             TicketType
+  category         TicketCategory
+  priority         TicketPriority
+  affectedScope    AffectedScope  @map("affected_scope")
+  title            String         @db.VarChar(160)
+  description      String
+  expiresAt        DateTime       @map("expires_at") @db.Timestamptz(3)
+  decidedAt        DateTime?      @map("decided_at") @db.Timestamptz(3)
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, status])
+  @@map("ticket_drafts")
+  @@schema("app")
+}
+
+model AgentDecision {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  messageId      String   @unique @map("message_id") @db.Uuid
+  intent         String   @db.VarChar(60)
+  understanding  String
+  action         String   @db.VarChar(60)
+  confidence     Float
+  rationale      String
+  steps          Json
+  model          String   @db.VarChar(80)
+  inputTokens    Int      @map("input_tokens")
+  outputTokens   Int      @map("output_tokens")
+  latencyMs      Int      @map("latency_ms")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message      Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("agent_decisions")
+  @@schema("app")
+}
+
+model Ticket {
+  id             String         @id @default(uuid(7)) @db.Uuid
+  code           String         @unique @db.VarChar(20)
+  type           TicketType
+  category       TicketCategory
+  priority       TicketPriority
+  status         TicketStatus   @default(OPEN)
+  affectedScope  AffectedScope  @map("affected_scope")
+  title          String         @db.VarChar(160)
+  description    String
+  requesterId    String         @map("requester_id") @db.Uuid
+  assigneeId     String?        @map("assignee_id") @db.Uuid
+  dueAt          DateTime?      @map("due_at") @db.Timestamptz(3)
+  lastActivityAt DateTime       @default(now()) @map("last_activity_at") @db.Timestamptz(3)
+  resolvedAt     DateTime?      @map("resolved_at") @db.Timestamptz(3)
+  closedAt       DateTime?      @map("closed_at") @db.Timestamptz(3)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  requester User           @relation("TicketRequester", fields: [requesterId], references: [id], onDelete: Restrict)
+  assignee  User?          @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  updates   TicketUpdate[]
+
+  @@index([requesterId, status])
+  @@index([status, dueAt])
+  @@map("tickets")
+  @@schema("ticketing")
+}
+
+model TicketUpdate {
+  id         String           @id @default(uuid(7)) @db.Uuid
+  ticketId   String           @map("ticket_id") @db.Uuid
+  authorId   String?          @map("author_id") @db.Uuid
+  kind       TicketUpdateKind
+  content    String?
+  fromStatus TicketStatus?    @map("from_status")
+  toStatus   TicketStatus?    @map("to_status")
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User?  @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_updates")
+  @@schema("ticketing")
+}
+
+model TicketSequence {
+  type       TicketType @id
+  lastNumber Int        @map("last_number")
+
+  @@map("ticket_sequences")
+  @@schema("ticketing")
+}

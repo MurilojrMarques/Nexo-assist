@@ -1,6 +1,12 @@
 import type { Priority } from "./priority";
 
-export type TicketStatus = "Aguardando analista" | "Em andamento" | "Aprovado" | "Resolvido" | "Fechado";
+export type TicketStatus =
+  | "Aguardando analista"
+  | "Em atendimento"
+  | "Em andamento"
+  | "Aprovado"
+  | "Resolvido"
+  | "Fechado";
 
 export type TicketSummary = {
   code: string;

@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Check, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { InputField } from "@/components/ui/input-field";
+import { homePathFor } from "@/features/auth/lib/home-path";
 import { validateLogin, type LoginErrors } from "@/features/auth/lib/validate-login";
 
 export function LoginForm() {
@@ -26,7 +27,7 @@ export function LoginForm() {
     }
 
     setErrors({});
-    router.push("/chat");
+    router.push(homePathFor(result.data.email));
   }
 
   return (

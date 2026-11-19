@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDay, formatDayTime } from "./format-date";
+import { formatClock, formatDay, formatDayTime } from "./format-date";
 
 describe("format-date", () => {
   it("formata dia e mês abreviado", () => {
@@ -9,6 +9,10 @@ describe("format-date", () => {
 
   it("formata dia, mês e hora", () => {
     expect(formatDayTime("2026-10-16T14:20:00-03:00")).toBe("16 out, 14:20");
+  });
+
+  it("formata só a hora de um instante", () => {
+    expect(formatClock(new Date("2026-10-21T13:12:00Z"))).toBe("10:12");
   });
 
   it("usa o fuso de São Paulo independentemente do fuso de origem", () => {

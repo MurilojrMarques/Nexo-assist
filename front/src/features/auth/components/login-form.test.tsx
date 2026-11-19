@@ -62,6 +62,16 @@ describe("LoginForm", () => {
     expect(push).toHaveBeenCalledWith("/chat");
   });
 
+  it("leva o analista ao console de conversas", async () => {
+    const { user, email, password, submit } = setup();
+
+    await user.type(email, "Rafael.Lima@nexo.com.br");
+    await user.type(password, "qualquer");
+    await user.click(submit);
+
+    expect(push).toHaveBeenCalledWith("/console");
+  });
+
   it("alterna a visibilidade da senha", async () => {
     const { user, password } = setup();
 

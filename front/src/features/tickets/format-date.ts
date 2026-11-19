@@ -26,6 +26,10 @@ export function formatDay(iso: string): string {
   return `${day} ${month}`;
 }
 
+export function formatClock(date: Date): string {
+  return dateParts(date.toISOString()).time;
+}
+
 export function formatDayTime(iso: string): string {
   const { day, month, time } = dateParts(iso);
   return `${day} ${month}, ${time}`;
